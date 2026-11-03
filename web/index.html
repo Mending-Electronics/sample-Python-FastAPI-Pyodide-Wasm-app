@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>VBA Audit local</title>
+    <link rel="stylesheet" href="/vendor/bootstrap.min.css">
+    <link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <div id="app" v-cloak>
+      <header class="app-header">
+        <div class="container header-content">
+          <div class="brand">
+            <span class="brand-mark"><i class="bi bi-shield-check"></i></span>
+            <div>
+              <p class="eyebrow mb-1">ANALYSE LOCALE · MODE LECTURE SEULE</p>
+              <h1>VBA Audit</h1>
+            </div>
+          </div>
+          <div class="header-status" :class="{ 'is-ready': ready, 'is-error': error }">
+            <span class="status-dot"></span>
+            <span>{{ statusText }}</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="container py-4 py-lg-5">
+        <div v-if="error" class="alert alert-danger" role="alert">
+          <i class="bi bi-exclamation-triangle me-2"></i>{{ error }}
+        </div>
+
+        <section class="intro mb-4">
+          <div>
+            <p class="eyebrow text-primary mb-2">OUTIL D’ANALYSE STATIQUE</p>
+            <h2>Inspecter un classeur ou un module VBA</h2>
+            <p class="text-secondary mb-0">
+              Les fichiers restent dans ce navigateur. Aucun code VBA n’est exécuté.
+            </p>
+          </div>
+          <a class="btn btn-outline-primary docs-link" href="/docs" target="_blank" rel="noreferrer">
+            <i class="bi bi-braces-asterisk me-2"></i>API &amp; OpenAPI
+          </a>
+        </section>
+
+        <div class="row g-4 align-items-start">
+          <div class="col-lg-7">
+            <section class="card panel-card">
+              <div class="card-body p-4">
+                <h3 class="section-title"><span class="step-number">1</span>Choisir une entrée</h3>
+                <label for="file-input" class="form-label">Classeur ou module VBA exporté</label>
+                <input
+                  id="file-input"
+                  class="form-control"
+                  type="file"
+                  accept=".xlsx,.xlsm,.bas,.cls,.frm,.vba,.txt"
+                  @change="selectFile"
+                  :disabled="busy || !ready"
+                >
+                <div class="form-text mt-2">
+                  XLSX/XLSM : marqueurs de protection uniquement. Pour l’analyse VBA, exportez les modules en .bas ou .cls.
+                </div>
+
+                <div class="divider"><span>ou coller le code</span></div>
+                <label for="source-input" class="form-label">Source VBA</label>
+                <textarea
+                  id="source-input"
+                  class="form-control code-input"
+                  v-model="sourceText"
+                  placeholder="Collez ici le contenu d’un module VBA exporté (.bas, .cls)…"
+                  spellcheck="false"
+                  :disabled="busy || !ready"
+                ></textarea>
+
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4">
+                  <span class="small text-secondary">
+                    <i class="bi bi-database-check me-1"></i>Rapports conservés localement (SQLite)
+                  </span>
+                  <button class="btn btn-primary px-4" @click="analyze" :disabled="!canAnalyze">
+                    <span v-if="busy" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                    <i v-else class="bi bi-search me-2"></i>
+                    {{ busy ? "Analyse en cours…" : "Analyser" }}
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section v-if="report" class="card panel-card mt-4">
+              <div class="card-body p-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                  <div>
+                    <p class="eyebrow mb-1">RAPPORT #{{ report.id }}</p>
+                    <h3 class="section-title mb-1">{{ report.filename }}</h3>
+                    <div class="small text-secondary">SHA-256 : <code>{{ report.sha256 }}</code></div>
+                  </div>
+                  <span class="badge rounded-pill" :class="riskClass(report.risk)">
+                    Risque {{ report.risk }}
+                  </span>
+                </div>
+
+                <div v-if="report.protections" class="protection-summary mt-4">
+                  <h4 class="subsection-title">Marqueurs de protection détectés</h4>
+                  <ul class="mb-0">
+                    <li>Feuilles protégées : {{ report.protections.protected_sheets.length || "aucune" }}</li>
+                    <li>Structure du classeur verrouillée : {{ report.protections.workbook_structure_locked ? "oui" : "non" }}</li>
+                    <li>Projet VBA intégré : {{ report.protections.vba_project_embedded ? "oui" : "non" }}</li>
+                    <li>Verrou du projet VBA analysé : non</li>
+                  </ul>
+                  <p class="small text-secondary mt-2 mb-0">{{ report.protections.note }}</p>
+                </div>
+
+                <div v-if="report.dridex" class="dridex-summary mt-4" :class="'dridex-' + report.dridex.status">
+                  <h4 class="subsection-title"><i class="bi bi-bug me-2"></i>Heuristique Dridex</h4>
+                  <p class="mb-1">{{ report.dridex.message }}</p>
+                  <span v-if="report.dridex.matched_categories.length" class="small">
+                    Indicateurs : {{ report.dridex.matched_categories.join(", ") }}
+                  </span>
+                </div>
+
+                <div v-if="report.findings && report.findings.length" class="mt-4">
+                  <h4 class="subsection-title">Indicateurs statiques</h4>
+                  <ul class="list-group list-group-flush">
+                    <li v-for="finding in report.findings" :key="finding.identifier" class="list-group-item px-0">
+                      <span class="badge me-2" :class="severityClass(finding.severity)">{{ finding.severity }}</span>
+                      <strong>{{ finding.title }}</strong>
+                      <span class="text-secondary"> — {{ finding.detail }}</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div v-if="report.deobfuscation && report.deobfuscation.preview" class="mt-4">
+                  <h4 class="subsection-title">Aperçu statique des chaînes décodées</h4>
+                  <p class="small text-secondary">
+                    {{ report.deobfuscation.replacement_count }} appel(s) Chr/ChrW littéral(aux) remplacé(s). Résultat non exécuté.
+                  </p>
+                  <pre class="code-preview">{{ report.deobfuscation.preview }}</pre>
+                </div>
+
+                <p v-if="report.limitations" class="small text-secondary mt-4 mb-0">
+                  {{ report.limitations.join(" ") }}
+                </p>
+                <button class="btn btn-sm btn-outline-secondary mt-3" @click="downloadReport">
+                  <i class="bi bi-download me-1"></i>Exporter ce rapport JSON
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <aside class="col-lg-5">
+            <section class="card panel-card">
+              <div class="card-body p-4">
+                <h3 class="section-title"><i class="bi bi-clock-history text-primary me-2"></i>Rapports récents</h3>
+                <div v-if="!reports.length" class="empty-state">
+                  <i class="bi bi-clipboard2-data"></i>
+                  <p class="mb-0">Les rapports apparaîtront ici après l’analyse.</p>
+                </div>
+                <ul v-else class="list-group list-group-flush report-list">
+                  <li v-for="item in reports" :key="item.id" class="list-group-item px-0">
+                    <button class="report-button" @click="openReport(item.id)">
+                      <span>
+                        <strong>{{ item.filename }}</strong>
+                        <small>{{ formatDate(item.analyzed_at) }}</small>
+                      </span>
+                      <span class="badge rounded-pill" :class="riskClass(item.risk)">{{ item.risk }}</span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </section>
+
+            <section class="notice-card mt-4">
+              <div class="notice-icon"><i class="bi bi-info-circle"></i></div>
+              <div>
+                <h3>Limites importantes</h3>
+                <p>
+                  Cette application ne retire pas et ne contourne pas les protections Excel/VBA.
+                  Elle ne déverrouille pas les projets protégés. L’analyse Dridex est heuristique,
+                  non exhaustive et ne constitue pas un verdict antivirus.
+                </p>
+                <p class="mb-0">
+                  Les modules binaires intégrés aux classeurs ne sont pas extraits. Aucun fichier
+                  ni code n’est envoyé à un serveur.
+                </p>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </main>
+      <footer class="app-footer">
+        <div class="container d-flex flex-wrap justify-content-between gap-2">
+          <span>VBA Audit · traitement local dans le navigateur</span>
+          <a href="/docs">Contrat OpenAPI</a>
+        </div>
+      </footer>
+    </div>
+    <script src="/vendor/vue.global.prod.js"></script>
+    <script src="/vendor/bootstrap.bundle.min.js"></script>
+    <script src="/vendor/pyodide/pyodide.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

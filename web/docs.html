@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Documentation API — VBA Audit</title>
+    <link rel="stylesheet" href="/vendor/bootstrap.min.css">
+    <link rel="stylesheet" href="/vendor/swagger-ui.css">
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <main class="container py-5">
+      <a href="/" class="btn btn-sm btn-outline-primary mb-4">← Retour à l’application</a>
+      <p class="eyebrow text-primary">CONTRAT OPENAPI 3.1</p>
+      <h1 class="mb-3">API métier locale</h1>
+      <div class="alert alert-info">
+        L’API Python s’exécute dans Pyodide et est appelée directement par Vue. Un navigateur ne
+        peut pas écouter un port HTTP; cette application n’expose donc pas de serveur FastAPI
+        réseau. Le JSON ci-dessous documente le contrat logique, pas des routes HTTP accessibles.
+      </div>
+      <p>
+        <a href="/openapi.json" class="btn btn-primary">Télécharger le document OpenAPI</a>
+      </p>
+      <section id="swagger-ui" class="mt-4"></section>
+    </main>
+    <script>
+      window.onload = () => {
+        window.ui = SwaggerUIBundle({
+          url: "/openapi.json",
+          dom_id: "#swagger-ui",
+          deepLinking: true,
+          supportedSubmitMethods: [],
+          presets: [SwaggerUIBundle.presets.apis],
+          layout: "BaseLayout"
+        });
+      };
+    </script>
+    <script src="/vendor/swagger-ui-bundle.js"></script>
+  </body>
+</html>

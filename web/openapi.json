@@ -1,0 +1,76 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VBA Audit local",
+    "version": "1.0.0",
+    "description": "Contrat logique de l’API métier exécutée dans Pyodide. L’application n’expose pas de serveur HTTP FastAPI."
+  },
+  "paths": {
+    "/api/status": {
+      "get": {
+        "summary": "Vérifier l’état du moteur local",
+        "responses": {
+          "200": {
+            "description": "Moteur prêt"
+          }
+        }
+      }
+    },
+    "/api/analyze/source": {
+      "post": {
+        "summary": "Analyser statiquement un module VBA exporté",
+        "description": "Aucun code VBA n’est exécuté.",
+        "responses": {
+          "200": {
+            "description": "Rapport d’analyse"
+          }
+        }
+      }
+    },
+    "/api/analyze/workbook": {
+      "post": {
+        "summary": "Inspecter les marqueurs de protection XLSX/XLSM",
+        "description": "Lecture seule; aucune protection n’est contournée.",
+        "responses": {
+          "200": {
+            "description": "Marqueurs de protection"
+          }
+        }
+      }
+    },
+    "/api/reports": {
+      "get": {
+        "summary": "Lister les rapports SQLite locaux",
+        "responses": {
+          "200": {
+            "description": "Liste des rapports"
+          }
+        }
+      }
+    },
+    "/api/reports/{report_id}": {
+      "get": {
+        "summary": "Lire un rapport local",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rapport trouvé"
+          },
+          "404": {
+            "description": "Rapport absent"
+          }
+        }
+      }
+    }
+  },
+  "x-runtime": "Appels Python directs dans Pyodide; aucun serveur FastAPI réseau."
+}
